@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Menú</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2e7d32">
+<style>
+*{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;background:#f6f7f4;color:#222}
+header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#2e7d32;color:#fff}
+h1{font-size:18px;margin:0}button{font:inherit;cursor:pointer}
+nav{display:flex;background:#fff;border-bottom:1px solid #ddd}nav button{flex:1;padding:12px;border:0;background:none}
+nav .on{border-bottom:3px solid #2e7d32;font-weight:600}
+main{padding:12px;max-width:640px;margin:auto}
+.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.h{text-align:center;font-size:12px;color:#777}
+.d{background:#fff;border:1px solid #ddd;border-radius:8px;min-height:52px;padding:4px;font-size:13px;text-align:left}
+.d.sel{border:2px solid #2e7d32}.d.hoy{background:#e8f5e9}.dot{font-size:10px;display:block;color:#2e7d32}
+.card{background:#fff;border:1px solid #ddd;border-radius:10px;padding:10px;margin:10px 0}
+input,textarea{width:100%;font:inherit;padding:8px;margin:4px 0;border:1px solid #ccc;border-radius:6px}
+.row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee}.row span{flex:1}
+.btn{background:#2e7d32;color:#fff;border:0;border-radius:6px;padding:8px 12px}
+.sm{border:1px solid #ccc;background:#fff;border-radius:6px;padding:4px 10px}
+.hecho{text-decoration:line-through;color:#999}h3{margin:12px 0 4px}small{color:#777}
+</style></head><body>
+<header><h1>🍽️ Menú</h1><button class="sm" id="login">Entrar con Google</button></header>
+<nav id="nav"></nav><main id="app"></main>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {initializeFirestore,persistentLocalCache,doc,onSnapshot,setDoc} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+// 1) Pegá acá la config de tu proyecto Firebase (Configuración del proyecto > Tus apps > Web)
+const cfg={apiKey:"AIzaSyCYDoLt4nAdFll5r4tleY1_kEBzPgEnFqg",authDomain:"organizacionmenu.firebaseapp.com",projectId:"organizacionmenu",appId:"1:235926222122:web:a78551cb79347fa63a1a53"};
+const app=initializeApp(cfg),auth=getAuth(app);
+const db=initializeFirestore(app,{localCache:persistentLocalCache()});
+
+let ed=null,ref=null,S={meals:{},extras:{},pantry:[]},tab="cal",sel=null,cur=new Date();cur.setDate(1);
+const $=q=>document.querySelector(q);
+const e=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const key=(y,m,d)=>`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+const hoyK=()=>{const t=new Date();return key(t.getFullYear(),t.getMonth(),t.getDate())};
+const save=()=>{if(ref)setDoc(ref,S);render()};
+const link=t=>/^https?:\/\//.test(t)?`<a href="${e(t)}" target="_blank" rel="noopener">${e(t.replace(/^https?:\/\/(www\.)?/,"").slice(0,40))}</a>`:e(t);
+const lines=t=>t.split("\n").map(x=>x.trim()).filter(Boolean);
+const enDespensa=l=>S.pantry.find(p=>p.q>0&&l.toLowerCase().includes(p.n.toLowerCase()));
+
+$("#login").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider());
+onAuthStateChanged(auth,u=>{
+  if(!u){ref=null;$("#login").hidden=false;return render()}
+  $("#login").hidden=true;ref=doc(db,"planes",u.uid);
+  onSnapshot(ref,s=>{S={meals:{},extras:{},pantry:[],...(s.data()||{})};render()});
+});
+
+window.A={
+  tab:t=>{tab=t;render()},
+  mes:n=>{cur.setMonth(cur.getMonth()+n);render()},
+  dia:k=>{sel=k;ed=null;render()},
+  edit:t=>{ed=t;render()},
+  pegar:async t=>{try{$(`#i-${t}`).value=await navigator.clipboard.readText()}catch{}},
+  editX:(t,i)=>{const o=S.extras[sel][t][i],v=prompt("Editar",o.t);if(v&&v.trim()){o.t=v.trim();save()}},
+  editP:i=>{const v=prompt("Nombre",S.pantry[i].n);if(v&&v.trim()){S.pantry[i].n=v.trim();save()}},
+  comida:t=>{const m=S.meals[sel]=S.meals[sel]||{};
+    m[t]={url:$(`#u-${t}`).value.trim(),titulo:$(`#t-${t}`).value.trim(),ing:lines($(`#i-${t}`).value)};ed=null;save()},
+  quitar:t=>{if(!confirm("¿Eliminar esta comida?"))return;delete (S.meals[sel]||{})[t];save()},
+  extra:t=>{const v=$(`#x-${t}`).value.trim();if(!v)return;
+    const x=S.extras[sel]=S.extras[sel]||{};(x[t]=x[t]||[]).push({t:v,ok:false});ed=null;save()},
+  toggle:(t,i)=>{const o=S.extras[sel][t][i];o.ok=!o.ok;save()},
+  borrar:(t,i)=>{S.extras[sel][t].splice(i,1);save()},
+  comprado:n=>{const p=S.pantry.find(p=>p.n.toLowerCase()===n.toLowerCase());
+    p?p.q++:S.pantry.push({n,q:1});save()},
+  addP:()=>{const n=$("#pn").value.trim(),q=+$("#pq").value||1;if(!n)return;
+    const p=S.pantry.find(p=>p.n.toLowerCase()===n.toLowerCase());p?p.q+=q:S.pantry.push({n,q});save()},
+  q:(i,d)=>{S.pantry[i].q=Math.max(0,S.pantry[i].q+d);save()},
+  delP:i=>{S.pantry.splice(i,1);save()},
+  extraC:(k,t,i)=>{sel=k;A.toggle(t,i)}
+};
+
+function editor(){
+  if(!sel)return"";
+  const m=S.meals[sel]||{},x=S.extras[sel]||{};
+  const comida=(t,n)=>{
+    const c=m[t];
+    if(ed===t){const d=c||{};return`<h3>${n}</h3>
+     <input id="u-${t}" placeholder="Link de la receta" value="${e(d.url)}">
+     <input id="t-${t}" placeholder="Nombre (opcional)" value="${e(d.titulo)}">
+     <textarea id="i-${t}" rows="5" placeholder="Ingredientes (uno por línea)">${e((d.ing||[]).join("\n"))}</textarea>
+     <button class="sm" onclick="A.pegar('${t}')">📋 Pegar ingredientes</button><br>
+     <button class="btn" onclick="A.comida('${t}')">Guardar</button> <button class="sm" onclick="A.edit(null)">Cancelar</button>`}
+    if(c)return`<h3>${n}</h3><div class="card" style="margin:4px 0"><b>${e(c.titulo||"Sin nombre")}</b>${c.url?`<div>${link(c.url)}</div>`:""}<ul>${(c.ing||[]).map(i=>`<li>${e(i)}</li>`).join("")||"<small>Sin ingredientes</small>"}</ul>
+     <button class="sm" onclick="A.edit('${t}')">✏️ Editar</button> <button class="sm" onclick="A.quitar('${t}')">🗑️ Eliminar</button></div>`;
+    return`<h3>${n}</h3><button class="sm" onclick="A.edit('${t}')">+ Agregar</button>`};
+  const extra=(t,n)=>`<h3>${n}</h3>`+(x[t]||[]).map((o,i)=>`<div class="row"><input type="checkbox" style="width:auto" ${o.ok?"checked":""} onchange="A.toggle('${t}',${i})"><span class="${o.ok?"hecho":""}">${link(o.t)}</span><button class="sm" onclick="A.editX('${t}',${i})">✏️</button><button class="sm" onclick="A.borrar('${t}',${i})">✕</button></div>`).join("")+
+   (ed==="x-"+t?`<div class="row"><input id="x-${t}" placeholder="Producto o link"><button class="btn" onclick="A.extra('${t}')">Guardar</button></div>`:`<button class="sm" onclick="A.edit('x-${t}')">+ Agregar</button>`);
+  return`<div class="card"><b>${sel}</b>${extra("desayuno","☕ Desayuno")}${comida("almuerzo","🍲 Almuerzo")}${extra("merienda","🍪 Merienda")}${comida("cena","🌙 Cena")}</div>`;
+}
+
+function cal(){
+  const y=cur.getFullYear(),m=cur.getMonth(),n=new Date(y,m+1,0).getDate(),off=(new Date(y,m,1).getDay()+6)%7;
+  let h=`<div class="bar"><button class="sm" onclick="A.mes(-1)">◀</button><b>${cur.toLocaleDateString("es-AR",{month:"long",year:"numeric"})}</b><button class="sm" onclick="A.mes(1)">▶</button></div><div class="grid">`+
+   "LMMJVSD".split("").map(l=>`<div class="h">${l}</div>`).join("")+"<div></div>".repeat(off);
+  for(let d=1;d<=n;d++){const k=key(y,m,d),c=S.meals[k]||{};
+    h+=`<button class="d ${k===sel?"sel":""} ${k===hoyK()?"hoy":""}" onclick="A.dia('${k}')">${d}${c.almuerzo?'<span class="dot">🍲</span>':""}${c.cena?'<span class="dot">🌙</span>':""}</button>`}
+  return h+"</div>"+editor();
+}
+
+function compras(){
+  const hoy=hoyK(),need=[],have=[];
+  Object.keys(S.meals).sort().filter(k=>k>=hoy).forEach(k=>["almuerzo","cena"].forEach(t=>
+    (S.meals[k][t]?.ing||[]).forEach(l=>(enDespensa(l)?have:need).push({l,k,t}))));
+  const ex=[];Object.keys(S.extras).sort().filter(k=>k>=hoy).forEach(k=>["desayuno","merienda"].forEach(t=>
+    (S.extras[k][t]||[]).forEach((o,i)=>ex.push({o,k,t,i}))));
+  return`<h3>🛒 Ingredientes que faltan</h3>`+(need.map(x=>`<div class="row"><span>${e(x.l)} <small>${x.k} ${x.t}</small></span><button class="sm" data-n="${e(x.l)}" onclick="A.comprado(this.dataset.n)">Comprado</button></div>`).join("")||"<small>Nada pendiente</small>")+
+   `<h3>☕🍪 Desayuno / merienda</h3>`+(ex.map(x=>`<div class="row"><input type="checkbox" ${x.o.ok?"checked":""} onchange="A.extraC('${x.k}','${x.t}',${x.i})"><span class="${x.o.ok?"hecho":""}">${link(x.o.t)} <small>${x.k}</small></span></div>`).join("")||"<small>Vacío</small>")+
+   (have.length?`<h3>✅ Ya tenés</h3>`+have.map(x=>`<div class="row"><span>${e(x.l)}</span></div>`).join(""):"");
+}
+
+function despensa(){
+  return`<div class="row"><input id="pn" placeholder="Ingrediente"><input id="pq" type="number" value="1" style="width:70px"><button class="btn" onclick="A.addP()">+</button></div>`+
+   S.pantry.map((p,i)=>`<div class="row"><span>${e(p.n)}</span><button class="sm" onclick="A.editP(${i})">✏️</button><button class="sm" onclick="A.q(${i},-1)">−</button><b>${p.q}</b><button class="sm" onclick="A.q(${i},1)">+</button><button class="sm" onclick="A.delP(${i})">✕</button></div>`).join("");
+}
+
+function render(){
+  $("#nav").innerHTML=[["cal","📅 Calendario"],["shop","🛒 Compras"],["desp","🏠 Despensa"]].map(([t,n])=>`<button class="${tab===t?"on":""}" onclick="A.tab('${t}')">${n}</button>`).join("");
+  if(!ref){$("#app").innerHTML="<p>Entrá con Google para ver tus datos.</p>";return}
+  const f=document.activeElement?.id;
+  $("#app").innerHTML=tab==="cal"?cal():tab==="shop"?compras():despensa();
+  if(f&&$("#"+f))$("#"+f).focus();
+}
+render();
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js");
+</script></body></html>
