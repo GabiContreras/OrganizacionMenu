@@ -31,7 +31,7 @@ import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged} from "htt
 import {initializeFirestore,persistentLocalCache,doc,onSnapshot,setDoc} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 // 1) Pegá acá la config de tu proyecto Firebase (Configuración del proyecto > Tus apps > Web)
-const cfg={apiKey:"TU_API_KEY",authDomain:"TU_PROYECTO.firebaseapp.com",projectId:"TU_PROYECTO",appId:"TU_APP_ID"};
+const cfg={apiKey:"AIzaSyCYDoLt4nAdFll5r4tleY1_kEBzPgEnFqg",authDomain:"organizacionmenu.firebaseapp.com",projectId:"organizacionmenu",appId:"1:235926222122:web:a78551cb79347fa63a1a53"};
 const app=initializeApp(cfg),auth=getAuth(app);
 const db=initializeFirestore(app,{localCache:persistentLocalCache()});
 
